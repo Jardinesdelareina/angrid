@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  angrid:
+    build: ./
+    container_name: angrid_trading
+    command: ["python3", "main.py"]
+    volumes:
+      - .:/app
+    ports:
+      - 8000:8000
+    env_file:
+      - ./.env
