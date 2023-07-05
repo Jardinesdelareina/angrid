@@ -1,6 +1,7 @@
 version: '3'
 
 services:
+
   angrid:
     build: ./
     container_name: angrid_trading
@@ -11,3 +12,12 @@ services:
       - 8000:8000
     env_file:
       - ./.env
+    depends_on:
+      - db
+      
+  db:
+    image: postgres:12
+    env_file:
+      - ./.env
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
