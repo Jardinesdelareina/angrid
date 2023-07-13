@@ -21,3 +21,4 @@ services:
       - ./.env
     volumes:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: ["bash", "-c", "psql -U postgres -f /docker-entrypoint-initdb.d/init.sql"]
