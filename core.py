@@ -18,7 +18,7 @@ class Angrid:
         SELL-ордера, что автоматически переквалифицирует стратегию в `buy and hold`.
     """
 
-    def __init__(self, symbol: str, price_step_percent: float = 1.0, depth_grid: int = 10):
+    def __init__(self, symbol: str, price_step_percent: float = 1.0, depth_grid: int = 5):
         """ symbol (str): Криптовалютный тикер
             price_step_percent (float): Дистанция между лимитными ордерами в сетке ордеров (в процентах)
             depth_grid (int): Глубина сетки, количество ордеров (как Buy, так и Sell)
@@ -42,7 +42,7 @@ class Angrid:
 
         balance_free = float(asset_balance.get('free'))
         try:
-            qnty = balance_free / self.depth_grid
+            qnty = balance_free / (self.depth_grid * 2)
             order = CLIENT.create_order(
                 symbol=self.symbol,
                 side=order_side,
@@ -69,7 +69,9 @@ class Angrid:
             df_order.to_sql(name=f'{db_ticker_order}', con=ENGINE, if_exists='append', index=False)
             print(f'{df_order.symbol}: {df_order.type} {df_order.side} {df_order.price} {df_order.status}')
         except bae:
-            print('Для размещения ордера недостаточно средств')
+            message = 'Для размещения ордера недостаточно средств'
+            print(message)
+            send_message(message)
         except KeyError:
             pass
 
