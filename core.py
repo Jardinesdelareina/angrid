@@ -16,6 +16,57 @@ class Angrid:
         self.depth_grid = depth_grid
 
 
+    def place_order(self, order_side: str, price: float):
+        if order_side == 'BUY_LIMIT':
+            asset_balance = CLIENT.get_asset_balance('USDT')
+        if order_side == 'SELL_LIMIT':
+            ticker = self.symbol.replace('USDT', '')
+            asset_balance = CLIENT.get_asset_balance(ticker)
+
+        balance_free = float(asset_balance.get('free'))
+        try:
+            qnty = balance_free / 10
+            order = CLIENT.create_order(
+                symbol=self.symbol,
+                side=order_side,
+                type='LIMIT',
+                timeInForce='GTC',
+                quantity=qnty,
+                price=price
+            )
+            df_order = pd.DataFrame(order)
+            df_order = df_order.rename(columns={
+                'orderId': 'order_id',
+                'clientOrderId': 'client_order_id',
+                'transactTime': 'transact_time',
+                'origQty': 'orig_qty',
+                'executedQty': 'executed_qty',
+                'timeInForce': 'time_in_force',
+            })
+            df_order.transact_time = pd.Series(pd.to_datetime(df_order.transact_time, unit='ms', utc=True))\
+                .dt.strftime('%Y-%m-%d %H:%M:%S')
+            df_order.price = round(df_order.price.astype(float), round_list[f'{self.symbol}'])
+            df_order.orig_qty = df_order.orig_qty.astype(float)
+            df_order.execute_qty = df_order.execute_qty.astype(float)
+            db_ticker_order = df_order.symbol.str.lower().iloc[0]
+            df_order.to_sql(name=f'{db_ticker_order}', con=ENGINE, if_exists='append', index=False)
+            print(f'{df_order.symbol}: {df_order.type} {df_order.side} {df_order.price} {df_order.status}')
+        except bae:
+            print('Для размещения ордера недостаточно средств')
+        except KeyError:
+            pass
+
+
+    def create_grid(self, start_price: float):
+        for i in range(self.depth_grid):
+            buy_price = start_price * (1 - self.price_step_percent/100 * (i+1))
+            self.place_order('BUY_LIMIT', buy_price)
+
+        for i in range(self.depth_grid):
+            sell_price = start_price * (1 + self.price_step_percent/100 * (i+1))
+            self.place_order('SELL_LIMIT', sell_price)
+
+
     def create_frame(self, stream):
         try:
             df = pd.DataFrame([stream])
@@ -25,45 +76,10 @@ class Angrid:
             for column in ['bid', 'ask']:
                 df[column] = round(df[column].astype(float), round_list[f'{self.symbol}'])
             print(f'{df.symbol}: {df.time} {df.bid} {df.ask}')
-            self.db_ticker = df.symbol.str.lower().iloc[0]
-            df.to_sql(name=f'{self.db_ticker}', con=ENGINE, if_exists='append', index=False)
+            db_ticker = df.symbol.str.lower().iloc[0]
+            df.to_sql(name=f'{db_ticker}', con=ENGINE, if_exists='append', index=False)
         except KeyError:
             pass
-    
-
-    def place_buy_limit(self, price: float):
-        asset_balance = CLIENT.get_asset_balance('USDT')
-        balance_free = float(asset_balance.get('free'))
-        qnty = balance_free / 10
-        order_buy_limit = CLIENT.order_limit_buy(
-            symbol=self.symbol,
-            quantity=qnty,
-            price=price
-        )
-        print(json.dumps(order_buy_limit, indent=4, sort_keys=True))
-
-
-    def plase_sell_limit(self, price: float):
-        ticker = self.symbol.replace('')
-        asset_balance = CLIENT.get_asset_balance(ticker)
-        balance_free = float(asset_balance.get('free'))
-        qnty = balance_free / 10
-        order_sell_limit = CLIENT.order_limit_buy(
-            symbol=self.symbol,
-            quantity=qnty,
-            price=price
-        )
-        print(json.dumps(order_sell_limit, indent=4, sort_keys=True))
-
-
-    def create_grid(self, start_price: float):
-        for i in range(self.depth_grid):
-            buy_price = start_price * (1 - self.price_step_percent/100 * (i+1))
-            self.place_buy_limit(buy_price)
-
-        for i in range(self.depth_grid):
-            sell_price = start_price * (1 + self.price_step_percent/100 * (i+1))
-            self.place_sell_limit(sell_price)
 
 
     async def socket_stream(self):
