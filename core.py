@@ -69,7 +69,8 @@ class Angrid:
             df_order.price = round(df_order.price.astype(float), round_list[f'{self.symbol}'])
             df_order.orig_qty = df_order.orig_qty.astype(float)
             df_order.execute_qty = df_order.execute_qty.astype(float)
-            df_order.to_sql(name='orders', con=ENGINE, if_exists='append', index=False)
+            df_order.cummulative_quote_qty = df_order.cummulative_quote_qty.astype(float)
+            df_order.to_sql(name='orders', con=ENGINE, if_exists='replace', index=False)
         except bae:
             message = 'Для размещения ордера недостаточно средств'
             print(message)
