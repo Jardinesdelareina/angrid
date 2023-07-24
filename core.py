@@ -4,22 +4,19 @@ import pandas as pd
 from binance import BinanceSocketManager
 from binance.exceptions import BinanceAPIException as bae
 from config import CLIENT, ENGINE, DEBUG
-from utils import round_list, send_message
+from utils import round_list, send_message, execute_query
 
 
 class Angrid:
     """ Алгоритм, представляющий стратегию "сеточной торговли".
         Основная идея стратегии заключается в том, чтобы стараться извлекать прибыль из рыночных
-        колебаний вне зависимости от направления движения цены. Так как большую часть времени статистически 
+        колебаний вне зависимости от направления движения цены. Так как большую часть времени, статистически, 
         цена находится в боковом движении, упор на спекуляции сделан именно во флете.
 
         Риски: при сильных движениях за пределы сетки есть риск либо недополучить прибыль,
         либо закупить криптовалюту на все оставшиеся стейблкоины с уходом цены далеко ниже крайнего лимитного 
         SELL-ордера, что автоматически переквалифицирует стратегию в `buy and hold`.
     """
-
-    INIT = False    # Инициализация алгоритма
-
 
     def __init__(self, symbol: str, price_step_percent: float = 1.0, depth_grid: int = 5):
         """ symbol (str): Криптовалютный тикер
@@ -89,7 +86,10 @@ class Angrid:
         sell_list = []
 
         for i in range(self.depth_grid):
-            buy_price = float(start_price * (1 - self.price_step_percent/100 * (i+1)))
+            buy_price = round(
+                float(start_price * (1 - self.price_step_percent/100 * (i+1))), 
+                round_list[f'{self.symbol}']
+            )
             buy_list.append(buy_price)
             if not DEBUG:
                 self.place_order('BUY_LIMIT', buy_price)
@@ -97,7 +97,10 @@ class Angrid:
                 print(f'{self.symbol} BUY LIMIT {buy_price}')
 
         for i in range(self.depth_grid):
-            sell_price = float(start_price * (1 + self.price_step_percent/100 * (i+1)))
+            sell_price = round(
+                float(start_price * (1 + self.price_step_percent/100 * (i+1))), 
+                round_list[f'{self.symbol}']
+            )
             sell_list.append(sell_price)
             if not DEBUG:
                 self.place_order('SELL_LIMIT', sell_price)
@@ -122,6 +125,9 @@ class Angrid:
         except KeyError:
             pass
 
+        start_process = execute_query("SELECT bid FROM market_stream LIMIT 1")
+        self.create_grid(start_price=start_process)
+
 
     async def socket_stream(self):
         """ Подключение к вебсокетам биржи Binance
@@ -135,7 +141,9 @@ class Angrid:
                     try:
                         self.create_frame(res)
                     except bae:
-                        print('Binance API Exception')
+                        socket_exception_message = 'Binance API Exception'
+                        print(socket_exception_message)
+                        send_message(socket_exception_message)
                         time.sleep(5)
                         self.create_frame(res)
                 await asyncio.sleep(0)
