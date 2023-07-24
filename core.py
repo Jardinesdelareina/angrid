@@ -18,6 +18,9 @@ class Angrid:
         SELL-ордера, что автоматически переквалифицирует стратегию в `buy and hold`.
     """
 
+    BUY_FILLED = False
+    SELL_FILLED = False
+
     def __init__(self, symbol: str, price_step_percent: float = 1.0, depth_grid: int = 5):
         """ symbol (str): Криптовалютный тикер
             price_step_percent (float): Дистанция между лимитными ордерами в сетке ордеров (в процентах)
@@ -125,7 +128,12 @@ class Angrid:
         except KeyError:
             pass
 
+        # Последняя котировка
+        self.last_price = execute_query("SELECT bid FROM market_stream ORDER BY time DESC LIMIT 1")
+
+        # Первая котировка, инициализирующая сетку при старте алгоритма
         start_process = execute_query("SELECT bid FROM market_stream LIMIT 1")
+        
         self.create_grid(start_price=start_process)
 
 

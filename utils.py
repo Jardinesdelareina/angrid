@@ -8,6 +8,8 @@ round_list = {'BTCUSDT': 2, 'ETHUSDT': 2, 'BNBUSDT': 1, 'XRPUSDT': 4}
 
 
 def send_message(message: str):
+    """ Уведомление в Telegram
+    """
     return requests.get(
         f'https://api.telegram.org/bot{TELETOKEN}/sendMessage', 
         params=dict(chat_id=CHAT_ID, text=message)
@@ -15,6 +17,8 @@ def send_message(message: str):
 
 
 def execute_query(query: str):
+    """ Обертка для SQL-запроса к базе данных
+    """
     with ENGINE.connect() as conn:
         result = conn.execute(text(query))
         df_result = pd.DataFrame(result.fetchall())
