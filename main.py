@@ -3,6 +3,8 @@ from concurrent.futures import ThreadPoolExecutor
 from core import Angrid
 from utils import symbol_list
 
+from config import CLIENT
+
 
 def start_single_bot(symbol):
     loop = asyncio.new_event_loop()

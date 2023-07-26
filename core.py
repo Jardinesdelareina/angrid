@@ -2,6 +2,7 @@ import time
 import asyncio
 import pandas as pd
 from binance import BinanceSocketManager
+from binance.helpers import round_step_size
 from binance.exceptions import BinanceAPIException as bae
 from config import CLIENT, ENGINE, DEBUG
 from utils import round_list, send_message, execute_query
@@ -45,7 +46,21 @@ class Angrid:
 
         balance_free = float(asset_balance.get('free'))
         try:
-            qnty = balance_free / (self.depth_grid * 2)
+            """ Например:
+
+                Баланс: 534 USDT
+                Глубина сетки: 10
+                (534 / (10 * 2)) - 534 * 0.01 = 21.36 USDT
+
+                Баланс: 0.0023 BTC
+                Глубина сетки: 5
+                (0.0023 / (5 * 2)) - 0.0023 * 0.01 = 0.000207 BTC
+            """
+            order_volume = (balance_free / (self.depth_grid * 2)) - balance_free * 0.01
+            symbol_info = CLIENT.get_symbol_info(ticker)
+            step_size = symbol_info.get('filters')[1]['stepSize']
+            qnty = round_step_size(order_volume, step_size)
+
             order = CLIENT.create_order(
                 symbol=self.symbol,
                 side=order_side,
