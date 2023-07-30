@@ -6,6 +6,7 @@ from binance.helpers import round_step_size
 from binance.exceptions import BinanceAPIException as bae
 from config import CLIENT, ENGINE, DEBUG
 from utils import round_list, send_message, execute_query
+from queries import *
 
 
 class Angrid:
@@ -19,6 +20,7 @@ class Angrid:
         SELL-ордера, что автоматически переквалифицирует стратегию в `buy and hold`.
     """
 
+    IS_INIT = True
     BUY_FILLED = False
     SELL_FILLED = False
 
@@ -143,13 +145,37 @@ class Angrid:
         except KeyError:
             pass
 
-        # Последняя котировка
-        self.last_price = execute_query("SELECT bid FROM market_stream ORDER BY time DESC LIMIT 1")
+        if not self.BUY_FILLED and not self.SELL_FILLED and self.IS_INIT:
+            self.create_grid(start_price=execute_query(start_process))
+            self.IS_INIT = False
+            print('Wait')
 
-        # Первая котировка, инициализирующая сетку при старте алгоритма
-        start_process = execute_query("SELECT bid FROM market_stream LIMIT 1")
-        
-        self.create_grid(start_price=start_process)
+            if not self.IS_INIT \
+            and not self.BUY_FILLED \
+            and execute_query(current_price) <= execute_query(order_buy_price):
+                self.BUY_FILLED = True
+                if self.BUY_FILLED \
+                and not self.SELL_FILLED \
+                and execute_query(current_price) >= execute_query(order_sell_price):
+                    self.BUY_FILLED = False
+                    self.SELL_FILLED = False
+                    execute_query(drop_data)
+                    self.create_grid(order_sell_price)
+
+            if not self.IS_INIT \
+            and not self.SELL_FILLED_FILLED \
+            and execute_query(current_price) >= execute_query(order_sell_price):
+                self.SELL_FILLED = True
+                if self.SELL_FILLED \
+                and not self.BUY_FILLED \
+                and execute_query(current_price) >= execute_query(order_buy_price):
+                    self.BUY_FILLED = False
+                    self.SELL_FILLED = False
+                    execute_query(drop_data)
+                    self.create_grid(order_buy_price)
+
+        else:
+            print('Not trading')
 
 
     async def socket_stream(self):
