@@ -16,8 +16,15 @@ def send_message(message: str):
     )
 
 
+def log_alert(message: str):
+    """ Логирование событий
+    """
+    print(message)
+    send_message(message)
+
+
 def execute_query(query: str):
-    """ Обертка для SQL-запроса к базе данных
+    """ Обертка для SQL-запроса
     """
     with ENGINE.connect() as conn:
         result = conn.execute(text(query))

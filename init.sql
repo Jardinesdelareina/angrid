@@ -4,10 +4,9 @@ CREATE DATABASE angrid;
 /* Поток рыночных данных */
 CREATE TABLE IF NOT EXISTS market_stream
 (
-    time DATETIME UNIQUE NOT NULL,
     symbol VARCHAR(10) NOT NULL,
-    bid FLOAT NOT NULL,
-    ask FLOAT NOT NULL
+    time DATETIME UNIQUE NOT NULL,
+    price FLOAT NOT NULL
 );
 
 /* 

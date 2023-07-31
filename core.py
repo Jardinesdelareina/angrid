@@ -5,7 +5,7 @@ from binance import BinanceSocketManager
 from binance.helpers import round_step_size
 from binance.exceptions import BinanceAPIException as bae
 from config import CLIENT, ENGINE, DEBUG
-from utils import round_list, send_message, execute_query
+from utils import round_list, send_message, log_alert, execute_query
 from queries import *
 
 
@@ -89,12 +89,29 @@ class Angrid:
             df_order.cummulative_quote_qty = df_order.cummulative_quote_qty.astype(float)
             df_order.to_sql(name='orders', con=ENGINE, if_exists='replace', index=False)
         except bae:
-            message = 'Для размещения ордера недостаточно средств'
-            print(message)
-            send_message(message)
+            log_alert('Для размещения ордера недостаточно средств')
         except KeyError:
             pass
 
+    
+    def cancel_orders(self):
+        """ Отмена лимитных ордеров по orderId
+        """
+        order_ids = []
+        for open_order_id in execute_query(open_orders):
+            open_order_id = open_order_id.get('orderId')
+            order_ids.append(open_order_id)
+        for order_id in order_ids:
+            CLIENT.cancel_order(symbol=self.symbol, orderId=order_id)
+        
+        order_list = []
+        for status in execute_query(order_status):
+            order_list.append(status)
+        if 'NEW' in order_list:
+            print('Отмена лимитных ордеров не удалась')
+        else:
+            print('Отмена лимитных ордеров')
+        
 
     def create_grid(self, start_price: float):
         """ Создание сетки лимитных ордеров
@@ -136,16 +153,15 @@ class Angrid:
         """
         try:
             df = pd.DataFrame([stream])
-            df = df.loc[:,['s', 'E', 'b', 'a']]
-            df.columns = ['symbol', 'time', 'bid', 'ask']
+            df = df.loc[:,['s', 'E', 'p']]
+            df.columns = ['symbol', 'time', 'price']
             df.time = pd.Series(pd.to_datetime(df.time, unit='ms', utc=True)).dt.strftime('%Y-%m-%d %H:%M:%S')
-            for column in ['bid', 'ask']:
-                df[column] = round(df[column].astype(float), round_list[f'{self.symbol}'])
+            df.price = round(df.price.astype(float), round_list[f'{self.symbol}'])
             df.to_sql(name='market_stream', con=ENGINE, if_exists='append', index=False)
         except KeyError:
             pass
-
-        if not self.BUY_FILLED and not self.SELL_FILLED and self.IS_INIT:
+        print(execute_query(current_price))
+        """ if not self.BUY_FILLED and not self.SELL_FILLED and self.IS_INIT:
             self.create_grid(start_price=execute_query(start_process))
             self.IS_INIT = False
             print('Wait')
@@ -159,8 +175,8 @@ class Angrid:
                 and execute_query(current_price) >= execute_query(order_sell_price):
                     self.BUY_FILLED = False
                     self.SELL_FILLED = False
-                    execute_query(drop_data)
                     self.create_grid(order_sell_price)
+                    self.cancel_orders()
 
             if not self.IS_INIT \
             and not self.SELL_FILLED_FILLED \
@@ -171,18 +187,18 @@ class Angrid:
                 and execute_query(current_price) >= execute_query(order_buy_price):
                     self.BUY_FILLED = False
                     self.SELL_FILLED = False
-                    execute_query(drop_data)
                     self.create_grid(order_buy_price)
+                    self.cancel_orders()
 
         else:
-            print('Not trading')
+            print('Not trading') """
 
 
     async def socket_stream(self):
         """ Подключение к вебсокетам биржи Binance
         """
         bm = BinanceSocketManager(client=CLIENT)
-        ts = bm.symbol_ticker_socket(self.symbol)
+        ts = bm.trade_socket(self.symbol)
         async with ts as tscm:
             while True:
                 res = await tscm.recv()
@@ -190,9 +206,7 @@ class Angrid:
                     try:
                         self.create_frame(res)
                     except bae:
-                        socket_exception_message = 'Binance API Exception'
-                        print(socket_exception_message)
-                        send_message(socket_exception_message)
+                        log_alert('Binance API Exception')
                         time.sleep(5)
                         self.create_frame(res)
                 await asyncio.sleep(0)
