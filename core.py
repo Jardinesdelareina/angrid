@@ -20,9 +20,9 @@ class Angrid:
         SELL-ордера, что автоматически переквалифицирует стратегию в `buy and hold`.
     """
 
-    IS_INIT = True
-    BUY_FILLED = False
-    SELL_FILLED = False
+    IS_INIT = True              # Флаг инициализации процесса
+    BUY_FILLED = False          # Флаг наличия лимитной покупки
+    SELL_FILLED = False         # Флаг наличия лимитной продажи
 
     def __init__(self, symbol: str, price_step_percent: float = 1.0, depth_grid: int = 5):
         """ symbol (str): Криптовалютный тикер
@@ -112,19 +112,8 @@ class Angrid:
             start_price (float): Стартовая цена, эпицентр сетки, 
                                 от которой будет отталкиваться диапазон price_step_percent
         """
-        buy_list = []
         sell_list = []
-
-        for i in range(self.depth_grid):
-            buy_price = round(
-                float(start_price * (1 - self.price_step_percent/100 * (i+1))), 
-                round_list[f'{self.symbol}']
-            )
-            buy_list.append(buy_price)
-            if not DEBUG:
-                self.place_order('BUY_LIMIT', buy_price)
-            else:
-                print(f'{self.symbol} BUY LIMIT {buy_price}')
+        buy_list = []
 
         for i in range(self.depth_grid):
             sell_price = round(
@@ -137,7 +126,18 @@ class Angrid:
             else:
                 print(f'{self.symbol} SELL LIMIT {sell_price}')
 
-        message = f'BUY: {[buy for buy in buy_list]} \n SELL: {[sell for sell in sell_list]}'
+        for i in range(self.depth_grid):
+            buy_price = round(
+                float(start_price * (1 - self.price_step_percent/100 * (i+1))), 
+                round_list[f'{self.symbol}']
+            )
+            buy_list.append(buy_price)
+            if not DEBUG:
+                self.place_order('BUY_LIMIT', buy_price)
+            else:
+                print(f'{self.symbol} BUY LIMIT {buy_price}')
+
+        message = f'SELL: {[sell for sell in sell_list]} \n BUY: {[buy for buy in buy_list]}'
         log_alert(message)        
 
 
@@ -155,36 +155,36 @@ class Angrid:
         except KeyError:
             pass
         
-        if DEBUG:
+        if not self.BUY_FILLED and not self.SELL_FILLED and self.IS_INIT:
+            self.create_grid(start_price=execute_query(start_process))
+            self.IS_INIT = False
+
             print(f'{self.symbol} {execute_query(current_price)}')
-        else:
-            if not self.BUY_FILLED and not self.SELL_FILLED and self.IS_INIT:
-                self.create_grid(start_price=execute_query(start_process))
-                self.IS_INIT = False
 
-                if not self.IS_INIT \
-                and not self.BUY_FILLED \
-                and execute_query(current_price) <= execute_query(order_buy_price):
-                    self.BUY_FILLED = True
-                    if self.BUY_FILLED \
-                    and not self.SELL_FILLED \
-                    and execute_query(current_price) >= execute_query(order_sell_price):
-                        self.BUY_FILLED = False
-                        self.SELL_FILLED = False
-                        self.create_grid(order_sell_price)
-                        self.cancel_orders()
-
-                if not self.IS_INIT \
-                and not self.SELL_FILLED_FILLED \
+            if not self.IS_INIT \
+            and not self.BUY_FILLED \
+            and execute_query(current_price) <= execute_query(order_buy_price):
+                self.BUY_FILLED = True
+                if self.BUY_FILLED \
+                and not self.SELL_FILLED \
                 and execute_query(current_price) >= execute_query(order_sell_price):
-                    self.SELL_FILLED = True
-                    if self.SELL_FILLED \
-                    and not self.BUY_FILLED \
-                    and execute_query(current_price) >= execute_query(order_buy_price):
-                        self.BUY_FILLED = False
-                        self.SELL_FILLED = False
-                        self.create_grid(order_buy_price)
-                        self.cancel_orders()
+                    self.BUY_FILLED = False
+                    self.SELL_FILLED = False
+                    self.create_grid(order_sell_price)
+                    self.cancel_orders()
+
+            if not self.IS_INIT \
+            and not self.SELL_FILLED_FILLED \
+            and execute_query(current_price) >= execute_query(order_sell_price):
+                self.SELL_FILLED = True
+                if self.SELL_FILLED \
+                and not self.BUY_FILLED \
+                and execute_query(current_price) >= execute_query(order_buy_price):
+                    self.BUY_FILLED = False
+                    self.SELL_FILLED = False
+                    self.create_grid(order_buy_price)
+                    self.cancel_orders()
+
 
     async def socket_stream(self):
         """ Подключение к вебсокетам биржи Binance

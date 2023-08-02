@@ -26,7 +26,11 @@ def log_alert(message: str):
 def execute_query(query: str):
     """ Обертка для SQL-запроса
     """
-    with ENGINE.connect() as conn:
-        result = conn.execute(text(query))
-        df_result = pd.DataFrame(result.fetchall())
-        return float(df_result.iloc[-1].values)
+    try:
+        with ENGINE.connect() as conn:
+            result = conn.execute(text(query))
+            df_result = pd.DataFrame(result.fetchall())
+            return float(df_result.iloc[-1].values)
+    except:
+        print(f'Запрос {query} не может быть исполнен')
+        
