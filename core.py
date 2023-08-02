@@ -97,17 +97,10 @@ class Angrid:
     def cancel_orders(self):
         """ Отмена лимитных ордеров по orderId
         """
-        order_ids = []
-        for open_order_id in execute_query(open_orders):
-            open_order_id = open_order_id.get('orderId')
-            order_ids.append(open_order_id)
-        for order_id in order_ids:
+        for order_id in execute_query(open_orders):
             CLIENT.cancel_order(symbol=self.symbol, orderId=order_id)
         
-        order_list = []
-        for status in execute_query(order_status):
-            order_list.append(status)
-        if 'NEW' in order_list:
+        if 'NEW' in execute_query(order_status):
             print('Отмена лимитных ордеров не удалась')
         else:
             print('Отмена лимитных ордеров')
@@ -145,11 +138,12 @@ class Angrid:
                 print(f'{self.symbol} SELL LIMIT {sell_price}')
 
         message = f'BUY: {[buy for buy in buy_list]} \n SELL: {[sell for sell in sell_list]}'
-        send_message(message)        
+        log_alert(message)        
 
 
     def create_frame(self, stream):
-        """ Обработка и сохранение в базу данных текущей рыночной информации
+        """ Обработка и сохранение в базу данных текущей рыночной информации, 
+            логика построения сетки лимитных ордеров
         """
         try:
             df = pd.DataFrame([stream])
@@ -160,39 +154,37 @@ class Angrid:
             df.to_sql(name='market_stream', con=ENGINE, if_exists='append', index=False)
         except KeyError:
             pass
-        print(execute_query(current_price))
-        """ if not self.BUY_FILLED and not self.SELL_FILLED and self.IS_INIT:
-            self.create_grid(start_price=execute_query(start_process))
-            self.IS_INIT = False
-            print('Wait')
-
-            if not self.IS_INIT \
-            and not self.BUY_FILLED \
-            and execute_query(current_price) <= execute_query(order_buy_price):
-                self.BUY_FILLED = True
-                if self.BUY_FILLED \
-                and not self.SELL_FILLED \
-                and execute_query(current_price) >= execute_query(order_sell_price):
-                    self.BUY_FILLED = False
-                    self.SELL_FILLED = False
-                    self.create_grid(order_sell_price)
-                    self.cancel_orders()
-
-            if not self.IS_INIT \
-            and not self.SELL_FILLED_FILLED \
-            and execute_query(current_price) >= execute_query(order_sell_price):
-                self.SELL_FILLED = True
-                if self.SELL_FILLED \
-                and not self.BUY_FILLED \
-                and execute_query(current_price) >= execute_query(order_buy_price):
-                    self.BUY_FILLED = False
-                    self.SELL_FILLED = False
-                    self.create_grid(order_buy_price)
-                    self.cancel_orders()
-
+        
+        if DEBUG:
+            print(f'{self.symbol} {execute_query(current_price)}')
         else:
-            print('Not trading') """
+            if not self.BUY_FILLED and not self.SELL_FILLED and self.IS_INIT:
+                self.create_grid(start_price=execute_query(start_process))
+                self.IS_INIT = False
 
+                if not self.IS_INIT \
+                and not self.BUY_FILLED \
+                and execute_query(current_price) <= execute_query(order_buy_price):
+                    self.BUY_FILLED = True
+                    if self.BUY_FILLED \
+                    and not self.SELL_FILLED \
+                    and execute_query(current_price) >= execute_query(order_sell_price):
+                        self.BUY_FILLED = False
+                        self.SELL_FILLED = False
+                        self.create_grid(order_sell_price)
+                        self.cancel_orders()
+
+                if not self.IS_INIT \
+                and not self.SELL_FILLED_FILLED \
+                and execute_query(current_price) >= execute_query(order_sell_price):
+                    self.SELL_FILLED = True
+                    if self.SELL_FILLED \
+                    and not self.BUY_FILLED \
+                    and execute_query(current_price) >= execute_query(order_buy_price):
+                        self.BUY_FILLED = False
+                        self.SELL_FILLED = False
+                        self.create_grid(order_buy_price)
+                        self.cancel_orders()
 
     async def socket_stream(self):
         """ Подключение к вебсокетам биржи Binance
