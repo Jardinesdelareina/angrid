@@ -4,7 +4,7 @@ services:
 
   angrid:
     build: ./
-    #restart: always
+    restart: always
     container_name: angrid_trading
     command: ["python3", "main.py"]
     volumes:
@@ -13,12 +13,11 @@ services:
       - 8000:8000
     env_file:
       - ./.env
-    depends_on:
-      - db
+    
       
   db:
     image: postgres:12
-    #restart: always
+    restart: always
     container_name: angrid_database
     ports:
       - 5432:5432

@@ -5,7 +5,7 @@ from binance import BinanceSocketManager
 from binance.helpers import round_step_size
 from binance.exceptions import BinanceAPIException as bae
 from config import CLIENT, ENGINE, DEBUG
-from utils import round_list, send_message, log_alert, execute_query
+from utils import round_list, log_alert, execute_query
 from queries import *
 
 
@@ -154,37 +154,38 @@ class Angrid:
             df.to_sql(name='market_stream', con=ENGINE, if_exists='append', index=False)
         except KeyError:
             pass
-        
+
         if not self.BUY_FILLED and not self.SELL_FILLED and self.IS_INIT:
             self.create_grid(start_price=execute_query(start_process))
             self.IS_INIT = False
 
-            print(f'{self.symbol} {execute_query(current_price)}')
+            if not DEBUG:
+                if not self.IS_INIT \
+                and not self.BUY_FILLED \
+                and execute_query(current_price) <= execute_query(order_buy_price):
+                    self.BUY_FILLED = True
+                    if self.BUY_FILLED \
+                    and not self.SELL_FILLED \
+                    and execute_query(current_price) >= execute_query(order_sell_price):
+                        self.BUY_FILLED = False
+                        self.SELL_FILLED = False
+                        self.create_grid(order_sell_price)
+                        self.cancel_orders()
 
-            if not self.IS_INIT \
-            and not self.BUY_FILLED \
-            and execute_query(current_price) <= execute_query(order_buy_price):
-                self.BUY_FILLED = True
-                if self.BUY_FILLED \
+                if not self.IS_INIT \
                 and not self.SELL_FILLED \
                 and execute_query(current_price) >= execute_query(order_sell_price):
-                    self.BUY_FILLED = False
-                    self.SELL_FILLED = False
-                    self.create_grid(order_sell_price)
-                    self.cancel_orders()
+                    self.SELL_FILLED = True
+                    if self.SELL_FILLED \
+                    and not self.BUY_FILLED \
+                    and execute_query(current_price) >= execute_query(order_buy_price):
+                        self.BUY_FILLED = False
+                        self.SELL_FILLED = False
+                        self.create_grid(order_buy_price)
+                        self.cancel_orders()
 
-            if not self.IS_INIT \
-            and not self.SELL_FILLED_FILLED \
-            and execute_query(current_price) >= execute_query(order_sell_price):
-                self.SELL_FILLED = True
-                if self.SELL_FILLED \
-                and not self.BUY_FILLED \
-                and execute_query(current_price) >= execute_query(order_buy_price):
-                    self.BUY_FILLED = False
-                    self.SELL_FILLED = False
-                    self.create_grid(order_buy_price)
-                    self.cancel_orders()
-
+        print(execute_query(current_price))
+    
 
     async def socket_stream(self):
         """ Подключение к вебсокетам биржи Binance
